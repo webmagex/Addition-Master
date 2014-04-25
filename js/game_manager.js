@@ -5,6 +5,7 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.actuator       = new Actuator;
 
   this.startTiles     = 2;
+	this.targetSum      = 10;
 
   this.inputManager.on("move", this.move.bind(this));
   this.inputManager.on("restart", this.restart.bind(this));
@@ -13,11 +14,17 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.setup();
 }
 
+GameManager.prototype.generateTargetSum = function () {
+		this.targetSum = Math.floor(Math.random() * (10)) + 2;
+		this.actuator.updateTargetSum(this.targetSum);
+}
+
 // Restart the game
 GameManager.prototype.restart = function () {
   this.storageManager.clearGameState();
   this.actuator.continueGame(); // Clear the game won/lost message
-  this.setup();
+  this.generateTargetSum();
+	this.setup();
 };
 
 // Keep playing after winning (allows going over 2048)
@@ -28,7 +35,8 @@ GameManager.prototype.keepPlaying = function () {
 
 // Return true if the game is lost, or has won and the user hasn't kept playing
 GameManager.prototype.isGameTerminated = function () {
-  return this.over || (this.won && !this.keepPlaying);
+  return this.over;
+		// return this.over || (this.won && !this.keepPlaying);
 };
 
 // Set up the game
@@ -43,6 +51,7 @@ GameManager.prototype.setup = function () {
     this.over        = previousState.over;
     this.won         = previousState.won;
     this.keepPlaying = previousState.keepPlaying;
+		this.targetSum   = previousState.targetSum;
   } else {
     this.grid        = new Grid(this.size);
     this.score       = 0;
@@ -52,6 +61,7 @@ GameManager.prototype.setup = function () {
 
     // Add the initial tiles
     this.addStartTiles();
+		this.generateTargetSum();
   }
 
   // Update the actuator
@@ -68,7 +78,7 @@ GameManager.prototype.addStartTiles = function () {
 // Adds a tile in a random position
 GameManager.prototype.addRandomTile = function () {
   if (this.grid.cellsAvailable()) {
-    var value = Math.random() < 0.9 ? 2 : 4;
+    var value = Math.random() < 0.9 ? 1 : 2;
     var tile = new Tile(this.grid.randomAvailableCell(), value);
 
     this.grid.insertTile(tile);
@@ -93,7 +103,8 @@ GameManager.prototype.actuate = function () {
     over:       this.over,
     won:        this.won,
     bestScore:  this.storageManager.getBestScore(),
-    terminated: this.isGameTerminated()
+    terminated: this.isGameTerminated(),
+		targetSum:  this.targetSum
   });
 
 };
@@ -105,7 +116,8 @@ GameManager.prototype.serialize = function () {
     score:       this.score,
     over:        this.over,
     won:         this.won,
-    keepPlaying: this.keepPlaying
+    keepPlaying: this.keepPlaying,
+		targetSum:   this.targetSum
   };
 };
 
@@ -141,6 +153,9 @@ GameManager.prototype.move = function (direction) {
 
   // Save the current tile positions and remove merger information
   this.prepareTiles();
+	
+	// Reset won
+	this.won = false;
 
   // Traverse the grid in the right direction and move tiles
   traversals.x.forEach(function (x) {
@@ -153,8 +168,10 @@ GameManager.prototype.move = function (direction) {
         var next      = self.grid.cellContent(positions.next);
 
         // Only one merger per row traversal?
-        if (next && next.value === tile.value && !next.mergedFrom) {
-          var merged = new Tile(positions.next, tile.value * 2);
+        //if (next && next.value === tile.value && !next.mergedFrom) {
+        //  var merged = new Tile(positions.next, tile.value * 2);
+        if (next && tile.value+next.value <= self.targetSum && !next.mergedFrom) {
+          var merged = new Tile(positions.next, tile.value + next.value);
           merged.mergedFrom = [tile, next];
 
           self.grid.insertTile(merged);
@@ -166,8 +183,11 @@ GameManager.prototype.move = function (direction) {
           // Update the score
           self.score += merged.value;
 
-          // The mighty 2048 tile
-          if (merged.value === 2048) self.won = true;
+          // The target sum was reached!
+          if (merged.value === self.targetSum) {
+							self.generateTargetSum();
+							self.won = true;
+					}
         } else {
           self.moveTile(tile, positions.farthest);
         }
@@ -256,7 +276,8 @@ GameManager.prototype.tileMatchesAvailable = function () {
 
           var other  = self.grid.cellContent(cell);
 
-          if (other && other.value === tile.value) {
+					if (other && other.value+tile.value <= self.targetSum) {
+          //if (other && other.value === tile.value) {
             return true; // These two tiles can be merged
           }
         }

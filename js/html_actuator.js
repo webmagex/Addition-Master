@@ -2,6 +2,7 @@ function HTMLActuator() {
   this.tileContainer    = document.querySelector(".tile-container");
   this.scoreContainer   = document.querySelector(".score-container");
   this.bestContainer    = document.querySelector(".best-container");
+	this.targetSumContainer = document.querySelector(".title");
   this.messageContainer = document.querySelector(".game-message");
 
   this.score = 0;
@@ -21,15 +22,18 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
       });
     });
 
+    self.updateTargetSum(metadata.targetSum);
     self.updateScore(metadata.score);
     self.updateBestScore(metadata.bestScore);
 
-    if (metadata.terminated) {
-      if (metadata.over) {
-        self.message(false); // You lose
-      } else if (metadata.won) {
-        self.message(true); // You win!
-      }
+		// Good job, you made the sum!
+		if (metadata.won) {
+      self.message(true, metadata.targetSum);
+    }
+			
+		// You lose.
+    if (metadata.terminated && metadata.over) {
+      self.message(false, 0);
     }
 
   });
@@ -120,13 +124,17 @@ HTMLActuator.prototype.updateScore = function (score) {
   }
 };
 
+HTMLActuator.prototype.updateTargetSum = function (targetSum) {
+		this.targetSumContainer.textContent = targetSum;
+}
+
 HTMLActuator.prototype.updateBestScore = function (bestScore) {
   this.bestContainer.textContent = bestScore;
 };
 
-HTMLActuator.prototype.message = function (won) {
+HTMLActuator.prototype.message = function (won, targetSum) {
   var type    = won ? "game-won" : "game-over";
-  var message = won ? "You win!" : "Game over!";
+  var message = won ? "Good job!\nNext sum: " + targetSum : "Game over!";
 
   this.messageContainer.classList.add(type);
   this.messageContainer.getElementsByTagName("p")[0].textContent = message;
