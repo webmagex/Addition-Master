@@ -5,7 +5,7 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.actuator       = new Actuator;
 
   this.startTiles     = 2;
-	this.targetSum      = 10;
+	this.targetSum      = 0;
 
   this.inputManager.on("move", this.move.bind(this));
   this.inputManager.on("restart", this.restart.bind(this));
@@ -15,15 +15,19 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
 }
 
 GameManager.prototype.generateTargetSum = function () {
-		this.targetSum = Math.floor(Math.random() * (10)) + 2;
-		this.actuator.updateTargetSum(this.targetSum);
+	var oldsum = this.targetSum;
+	while (this.targetSum < 2 || this.targetSum === oldsum) {
+		this.targetSum = oldsum + Math.floor((Math.random() * 6) - (Math.min(oldsum, 3) * Math.random()));
+	}
+	this.actuator.updateTargetSum(this.targetSum);
 }
 
 // Restart the game
 GameManager.prototype.restart = function () {
   this.storageManager.clearGameState();
   this.actuator.continueGame(); // Clear the game won/lost message
-  this.generateTargetSum();
+  this.targetSum = 0;
+	this.generateTargetSum();
 	this.setup();
 };
 
@@ -36,7 +40,6 @@ GameManager.prototype.keepPlaying = function () {
 // Return true if the game is lost, or has won and the user hasn't kept playing
 GameManager.prototype.isGameTerminated = function () {
   return this.over;
-		// return this.over || (this.won && !this.keepPlaying);
 };
 
 // Set up the game
@@ -50,7 +53,7 @@ GameManager.prototype.setup = function () {
     this.score       = previousState.score;
     this.over        = previousState.over;
     this.won         = previousState.won;
-    this.keepPlaying = previousState.keepPlaying;
+    this.keepPlaying = false;
 		this.targetSum   = previousState.targetSum;
   } else {
     this.grid        = new Grid(this.size);
@@ -78,9 +81,13 @@ GameManager.prototype.addStartTiles = function () {
 // Adds a tile in a random position
 GameManager.prototype.addRandomTile = function () {
   if (this.grid.cellsAvailable()) {
-    var value = Math.random() < 0.9 ? 1 : 2;
-    var tile = new Tile(this.grid.randomAvailableCell(), value);
-
+    var value = Math.floor(Math.random() * this.targetSum / 3) + 1;		
+	  
+		// Add special piece
+		if (this.targetSum >= 10 && Math.random() > 0.95)
+				value = 25;
+    
+		var tile = new Tile(this.grid.randomAvailableCell(), value);
     this.grid.insertTile(tile);
   }
 };
@@ -166,27 +173,38 @@ GameManager.prototype.move = function (direction) {
       if (tile) {
         var positions = self.findFarthestPosition(cell, vector);
         var next      = self.grid.cellContent(positions.next);
-
+				var facetile  = false;
+				
         // Only one merger per row traversal?
-        //if (next && next.value === tile.value && !next.mergedFrom) {
-        //  var merged = new Tile(positions.next, tile.value * 2);
-        if (next && tile.value+next.value <= self.targetSum && !next.mergedFrom) {
-          var merged = new Tile(positions.next, tile.value + next.value);
-          merged.mergedFrom = [tile, next];
+				if (next && next.value === 25) {
+				    facetile = next;
+						//next = self.grid.cellContent(positions.next.next);
+				}
+				if (next && tile.value+next.value <= self.targetSum && !next.mergedFrom) {
+					  merged = new Tile(positions.next, tile.value + next.value);
+            merged.mergedFrom = [tile, next];
 
-          self.grid.insertTile(merged);
-          self.grid.removeTile(tile);
+            self.grid.insertTile(merged);
+            self.grid.removeTile(tile);
+						
+						if (facetile) {
+							self.grid.removeTile(facetile);
+						}
 
-          // Converge the two tiles' positions
-          tile.updatePosition(positions.next);
-
-          // Update the score
-          self.score += merged.value;
-
-          // The target sum was reached!
-          if (merged.value === self.targetSum) {
+            // Converge the two tiles' positions
+            tile.updatePosition(positions.next);
+					
+					
+            // The target sum was reached!
+            if (merged.value === self.targetSum) {
 							self.generateTargetSum();
-							self.won = true;
+							self.won = tile.value + "+" + next.value + "=" + merged.value;
+							
+              // Update the score
+              self.score += merged.value;
+							if (facetile) {
+									self.score += merged.value;
+							}
 					}
         } else {
           self.moveTile(tile, positions.farthest);
@@ -277,7 +295,6 @@ GameManager.prototype.tileMatchesAvailable = function () {
           var other  = self.grid.cellContent(cell);
 
 					if (other && other.value+tile.value <= self.targetSum) {
-          //if (other && other.value === tile.value) {
             return true; // These two tiles can be merged
           }
         }

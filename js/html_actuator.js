@@ -27,13 +27,13 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
     self.updateBestScore(metadata.bestScore);
 
 		// Good job, you made the sum!
-		if (metadata.won) {
-      self.message(true, metadata.targetSum);
+		if (metadata.won != false) {
+      self.message(true, metadata.won, metadata.targetSum);
     }
 			
 		// You lose.
     if (metadata.terminated && metadata.over) {
-      self.message(false, 0);
+      self.message(false, 0, 0);
     }
 
   });
@@ -52,6 +52,7 @@ HTMLActuator.prototype.clearContainer = function (container) {
 
 HTMLActuator.prototype.addTile = function (tile) {
   var self = this;
+	var FACE = ":)";
 
   var wrapper   = document.createElement("div");
   var inner     = document.createElement("div");
@@ -66,7 +67,10 @@ HTMLActuator.prototype.addTile = function (tile) {
   this.applyClasses(wrapper, classes);
 
   inner.classList.add("tile-inner");
-  inner.textContent = tile.value;
+	if (tile.value === 25)
+  	inner.textContent = FACE;
+	else
+    inner.textContent = tile.value;
 
   if (tile.previousPosition) {
     // Make sure that the tile gets rendered in the previous position first
@@ -132,9 +136,9 @@ HTMLActuator.prototype.updateBestScore = function (bestScore) {
   this.bestContainer.textContent = bestScore;
 };
 
-HTMLActuator.prototype.message = function (won, targetSum) {
+HTMLActuator.prototype.message = function (won, lastsum, targetSum) {
   var type    = won ? "game-won" : "game-over";
-  var message = won ? "Good job!\nNext sum: " + targetSum : "Game over!";
+  var message = won ? lastsum + "  Next sum: " + targetSum : "Game over!";
 
   this.messageContainer.classList.add(type);
   this.messageContainer.getElementsByTagName("p")[0].textContent = message;
